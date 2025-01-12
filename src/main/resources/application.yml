@@ -9,9 +9,9 @@ spring:
 
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/yu_picture
+    url: jdbc:mysql://localhost:3306/yu_picture?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
     username: root
-    password: 021004
+    password: '021004'
 
 mybatis-plus:
   configuration:
@@ -35,7 +35,6 @@ knife4j:
     version: 1.0
     group:
       default:
-        group-name: 默认分组
         api-rule: package
         api-rule-resources:
           - com.xiaomai.yupicturebackend.controller

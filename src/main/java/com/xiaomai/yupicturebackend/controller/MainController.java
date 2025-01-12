@@ -2,6 +2,7 @@ package com.xiaomai.yupicturebackend.controller;
 
 import com.xiaomai.yupicturebackend.common.BaseResponse;
 import com.xiaomai.yupicturebackend.common.ResultUtils;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -15,7 +16,7 @@ public class MainController {
     /**
      * 健康检查
      */
-    @RequestMapping("/health")
+    @GetMapping("/health")
     public BaseResponse<String> health() {
         return ResultUtils.success("ok");
     }

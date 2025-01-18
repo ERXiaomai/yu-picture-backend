@@ -37,7 +37,7 @@ import static com.xiaomai.yupicturebackend.constant.UserConstant.USER_LOGIN_STAT
 */
 @Service
 @Slf4j
-public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService{
+public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
     /**
      * 用户注册
@@ -50,24 +50,24 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
         //1.校验参数
-        if(StrUtil.hasBlank(userAccount,userPassword,checkPassword)){
-            throw new BusinessException(ErrorCode.PARAMS_ERROR,"参数为空");
+        if (StrUtil.hasBlank(userAccount, userPassword, checkPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空");
         }
-        if(userAccount.length() <4){
-            throw new BusinessException(ErrorCode.PARAMS_ERROR,"用户名过短");
+        if (userAccount.length() < 4) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户名过短");
         }
-        if(userPassword.length() <8 || checkPassword.length() <8){
-            throw new BusinessException(ErrorCode.PARAMS_ERROR,"密码过短");
+        if (userPassword.length() < 8 || checkPassword.length() < 8) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "密码过短");
         }
-        if(!userPassword.equals(checkPassword)){
-            throw new BusinessException(ErrorCode.PARAMS_ERROR,"两次密码不一致");
+        if (!userPassword.equals(checkPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "两次密码不一致");
         }
         //2.检查用户能否和数据库已有的重复'
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("userAccount", userAccount);
         long count = this.baseMapper.selectCount(queryWrapper);
-        if(count > 0){
-            throw new BusinessException(ErrorCode.PARAMS_ERROR,"账号重复");
+        if (count > 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号重复");
         }
         //3.密码加密
         String encryptPassword = getEncryptPassword(userPassword);
@@ -78,8 +78,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         user.setUserName("用户");
         user.setUserRole(UserRoleEnum.USER.getValue());
         boolean saveResult = this.save(user);
-        if(!saveResult){
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR,"注册失败，数据库错误");
+        if (!saveResult) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败，数据库错误");
         }
         return user.getId();
     }
@@ -87,43 +87,42 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public LoginUserVO userLogin(String userAccount, String userPassword, HttpServletRequest request) {
         //1.校验
-        if(StrUtil.hasBlank(userAccount,userPassword)){
-            throw new BusinessException(ErrorCode.PARAMS_ERROR,"参数为空");
+        if (StrUtil.hasBlank(userAccount, userPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空");
         }
-        if(userAccount.length() <4){
-            throw new BusinessException(ErrorCode.PARAMS_ERROR,"用户名错误");
+        if (userAccount.length() < 4) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户名错误");
         }
-        if(userPassword.length() <8){
-            throw new BusinessException(ErrorCode.PARAMS_ERROR,"密码错误");
+        if (userPassword.length() < 8) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "密码错误");
         }
         //2.对用户传递的密码进行加密
         String encryptPassword = getEncryptPassword(userPassword);
         //3.查询数据库中的用户是否存在
-        QueryWrapper<User> queryWrapper=new QueryWrapper<>();
-        queryWrapper.eq("userAccount",userAccount);
-        queryWrapper.eq("userPassword",encryptPassword);
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("userAccount", userAccount);
+        queryWrapper.eq("userPassword", encryptPassword);
         User user = this.baseMapper.selectOne(queryWrapper);
         //不存在抛异常
-        if(user == null){
+        if (user == null) {
             log.info("user login failed,userAccount cannot match password");
-            throw new BusinessException(ErrorCode.PARAMS_ERROR,"用户不存在,或者密码错误");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户不存在,或者密码错误");
         }
         //4.保存用户登陆状态
-        request.getSession().setAttribute(USER_LOGIN_STATE,user);
+        request.getSession().setAttribute(USER_LOGIN_STATE, user);
         return this.getLoginUserVO(user);
     }
 
 
-
-
     /**
      * 加密
+     *
      * @param userPassword 用户密码
      * @return 加密后的密码
      */
     @Override
-    public String getEncryptPassword(String userPassword){
-            //加盐，混淆密码
+    public String getEncryptPassword(String userPassword) {
+        //加盐，混淆密码
         final String SALT = "xiaomai";
         return DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
     }
@@ -146,29 +145,31 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
 
-
     /**
      * 获取脱敏的用户信息
+     *
      * @param user 用户信息
      * @return 脱敏后的用户信息
      */
     @Override
     public LoginUserVO getLoginUserVO(User user) {
-        if(user == null){
+        if (user == null) {
             return null;
         }
         LoginUserVO loginUserVO = new LoginUserVO();
         BeanUtil.copyProperties(user, loginUserVO);
         return loginUserVO;
     }
+
     /**
      * 获取脱敏后的用户
+     *
      * @param user
      * @return
      */
     @Override
     public UserVO getUserVO(User user) {
-        if(user == null){
+        if (user == null) {
             return null;
         }
         UserVO userVO = new UserVO();
@@ -178,6 +179,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     /**
      * 获取脱敏后的用户列表
+     *
      * @param userList
      * @return
      */
@@ -194,8 +196,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public boolean userLogout(HttpServletRequest request) {
         Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
-        if (userObj == null){
-            throw new BusinessException(ErrorCode.OPERATION_ERROR,"未登录");
+        if (userObj == null) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "未登录");
         }
         //移除登录态
         request.getSession().removeAttribute(USER_LOGIN_STATE);
@@ -224,7 +226,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return queryWrapper;
     }
 
+    @Override
+    public boolean isAdmin(User user) {
+        return user !=null && UserRoleEnum.ADMIN.getValue().equals(user.getUserRole());
+    }
 }
+
 
 
 

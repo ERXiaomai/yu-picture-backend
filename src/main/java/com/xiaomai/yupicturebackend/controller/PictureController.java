@@ -11,23 +11,24 @@ import com.xiaomai.yupicturebackend.constant.UserConstant;
 import com.xiaomai.yupicturebackend.exception.BusinessException;
 import com.xiaomai.yupicturebackend.exception.ErrorCode;
 import com.xiaomai.yupicturebackend.exception.ThrowUtils;
-import com.xiaomai.yupicturebackend.model.dto.picture.PictureEditRequest;
-import com.xiaomai.yupicturebackend.model.dto.picture.PictureQueryRequest;
-import com.xiaomai.yupicturebackend.model.dto.picture.PictureUpdateRequest;
-import com.xiaomai.yupicturebackend.model.dto.picture.PictureUploadRequest;
+import com.xiaomai.yupicturebackend.model.dto.picture.*;
 import com.xiaomai.yupicturebackend.model.entity.Picture;
 import com.xiaomai.yupicturebackend.model.entity.User;
+import com.xiaomai.yupicturebackend.model.vo.PictureTagCategory;
 import com.xiaomai.yupicturebackend.model.vo.PictureVO;
 import com.xiaomai.yupicturebackend.service.PictureService;
 import com.xiaomai.yupicturebackend.service.UserService;
 import lombok.extern.slf4j.Slf4j;
+import net.bytebuddy.implementation.bytecode.Throw;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 
 /**
  * 功能:
@@ -47,7 +48,7 @@ public class PictureController {
      * 上传图片（可重新上传）
      */
     @PostMapping("/upload")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+   // @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<PictureVO> uploadPicture(
             @RequestPart("file") MultipartFile multipartFile,
             PictureUploadRequest pictureUploadRequest,
@@ -196,4 +197,28 @@ public class PictureController {
         return ResultUtils.success(true);
     }
 
+
+    @GetMapping("/tag_category")
+    public BaseResponse<PictureTagCategory> listPictureTagCategory() {
+        PictureTagCategory pictureTagCategory = new PictureTagCategory();
+        List<String> tagList = Arrays.asList("热门", "搞笑", "生活", "高清", "艺术", "校园", "背景", "简历", "创意");
+        List<String> categoryList = Arrays.asList("模板", "电商", "表情包", "素材", "海报");
+        pictureTagCategory.setTagList(tagList);
+        pictureTagCategory.setCategoryList(categoryList);
+        return ResultUtils.success(pictureTagCategory);
+    }
+
+    /**
+     * 审核图片
+     */
+    @PostMapping("/review")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> doPictureReview(@RequestBody PictureReviewRequest pictureReviewRequest,
+                                                             HttpServletRequest request) {
+        ThrowUtils.throwIf(pictureReviewRequest == null, ErrorCode.PARAMS_ERROR);
+        User loginUser = userService.getLoginUser(request);
+        pictureService.doPictureReview(pictureReviewRequest, loginUser);
+        return ResultUtils.success(true);
+
+    }
 }

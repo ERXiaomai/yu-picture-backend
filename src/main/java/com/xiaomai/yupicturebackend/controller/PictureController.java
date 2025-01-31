@@ -62,7 +62,7 @@ public class PictureController {
     /**
      * 通过URL上传图片（可重新上传）
      */
-    @PostMapping("/upload")
+    @PostMapping("/upload/url")
     // @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<PictureVO> uploadPictureByUrl(
             @RequestBody PictureUploadRequest pictureUploadRequest,

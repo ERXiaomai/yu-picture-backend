@@ -1,8 +1,12 @@
 package com.xiaomai.yupicturebackend.controller;
 
 
+import cn.hutool.core.util.RandomUtil;
+import cn.hutool.json.JSON;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.xiaomai.yupicturebackend.annotation.AuthCheck;
 import com.xiaomai.yupicturebackend.common.BaseResponse;
 import com.xiaomai.yupicturebackend.common.DeleteRequest;
@@ -22,6 +26,9 @@ import com.xiaomai.yupicturebackend.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import net.bytebuddy.implementation.bytecode.Throw;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -30,6 +37,7 @@ import javax.servlet.http.HttpServletRequest;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 功能:
@@ -45,6 +53,21 @@ public class PictureController {
 
     @Resource
     private PictureService pictureService;
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
+
+    /**
+     * 本地缓存
+     */
+    private final Cache<String, String> LOCAL_CACHE =
+            Caffeine.newBuilder().initialCapacity(1024)
+                    .maximumSize(10000L) //最大10000条
+                    // 缓存 5 分钟移除
+                    .expireAfterWrite(5L, TimeUnit.MINUTES)
+                    .build();
+
+
     /**
      * 上传图片（可重新上传）
      */
@@ -170,6 +193,59 @@ public class PictureController {
     /**
      * 分页获取图片列表（封装类）
      */
+    @PostMapping("/list/page/vo/cache")
+    public BaseResponse<Page<PictureVO>> listPictureVOByPageWithCache(@RequestBody PictureQueryRequest pictureQueryRequest,
+                                                             HttpServletRequest request) {
+        //todo
+        long current = pictureQueryRequest.getCurrent();
+        long size = pictureQueryRequest.getPageSize();
+        // 限制爬虫
+        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        //普通用户默认只能看到审核通过的数据，强行设置查PASS的
+        pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
+
+        //查询缓存，缓存中没有再去查数据库
+
+        //构建缓存的key
+        String queryCondition = JSONUtil.toJsonStr(pictureQueryRequest);
+        String hashKey = DigestUtils.md5DigestAsHex(queryCondition.getBytes());
+        String cacheKey = String.format("yupicture:listPictureVOByPage:%s",hashKey);
+
+        //1.先从本地缓存中查询
+        String cachedValue = LOCAL_CACHE.getIfPresent(cacheKey);
+        if(cachedValue != null){
+            //缓存命中，直接返回缓存结果
+            Page<PictureVO> cachedPage = JSONUtil.toBean(cachedValue, Page.class);
+            return ResultUtils.success(cachedPage);
+        }
+        //2.本地缓存未命中，查询分布式缓存,操作Redis 从缓存中查询
+        ValueOperations<String,String> opsForValue = stringRedisTemplate.opsForValue();
+        cachedValue = opsForValue.get(cacheKey);
+
+
+        if(cachedValue != null){
+            //缓存命中，缓存结果
+            Page<PictureVO> cachedPage = JSONUtil.toBean(cachedValue, Page.class);
+            return ResultUtils.success(cachedPage);
+        }
+        // 查询数据库
+        Page<Picture> picturePage = pictureService.page(new Page<>(current, size),
+                pictureService.getQueryWrapper(pictureQueryRequest));
+        Page<PictureVO> pictureVOPage = pictureService.getPictureVOPage(picturePage, request);
+        //存入redis缓存
+        String cacheValue = JSONUtil.toJsonStr(pictureVOPage);
+        //设置缓存过期时间 5- 10分钟过期 (防止缓存雪崩:集中失效导致都传入数据库，增大数据库压力)
+        int cacheExpireTime = 300 + RandomUtil.randomInt(0,300);
+        //opsForValue.set(cacheKey,cacheValue,cacheExpireTime, TimeUnit.SECONDS);
+        //写入本地缓存
+        LOCAL_CACHE.put(cacheKey,cacheValue);
+        // 获取封装类
+        return ResultUtils.success(pictureVOPage);
+    }
+
+    /**
+     * 分页获取图片列表（封装类,有缓存）
+     */
     @PostMapping("/list/page/vo")
     public BaseResponse<Page<PictureVO>> listPictureVOByPage(@RequestBody PictureQueryRequest pictureQueryRequest,
                                                              HttpServletRequest request) {
@@ -185,6 +261,7 @@ public class PictureController {
         // 获取封装类
         return ResultUtils.success(pictureService.getPictureVOPage(picturePage, request));
     }
+
 
     /**
      * 编辑图片（给用户使用）

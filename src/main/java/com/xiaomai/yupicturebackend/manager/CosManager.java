@@ -1,5 +1,6 @@
 package com.xiaomai.yupicturebackend.manager;
 
+import cn.hutool.core.io.FileUtil;
 import com.qcloud.cos.COS;
 import com.qcloud.cos.COSClient;
 import com.qcloud.cos.model.COSObject;
@@ -12,6 +13,8 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 功能:
@@ -56,7 +59,29 @@ public class CosManager {
         PicOperations picOperation = new PicOperations();
         //1 表示返回原图信息
         picOperation.setIsPicInfo(1);
+        //图片处理规则列表
+        List<PicOperations.Rule> rules = new ArrayList<>();
+        //图片压缩(转成webp格式)
+        String webpKey = FileUtil.mainName(key) + ".webp";
+        PicOperations.Rule compressRule = new PicOperations.Rule();
+        compressRule.setFileId(webpKey);
+        compressRule.setBucket(cosClientConfig.getBucket());
+        compressRule.setRule("imageMogr2/format/webp");
+        rules.add(compressRule);
+        //2.缩略图处理 (加规则，仅对大于20KB的图片生成缩略图)
+        if(FileUtil.size(file) > 20 * 1024){
+            PicOperations.Rule thumbnailRule  = new PicOperations.Rule();
+            thumbnailRule.setBucket(cosClientConfig.getBucket());
+            //拼接缩略图的路径
+            String thumbnailKey = FileUtil.mainName(key) + "_thumbnail." + FileUtil.getSuffix(key);
+            thumbnailRule.setFileId(thumbnailKey);
+            thumbnailRule.setBucket(cosClientConfig.getBucket());
+            //缩放规则/thumbnail/<width><heigh> > (如果大于原图宽高，则不处理)
+            thumbnailRule.setRule(String.format("imageMogr2/thumbnail/%sx%s>",128,128));
+            rules.add(thumbnailRule);
+        }
         //构造处理参数
+        picOperation.setRules(rules);
         putObjectRequest.setPicOperations(picOperation);
         return cosClient.putObject(putObjectRequest);
     }

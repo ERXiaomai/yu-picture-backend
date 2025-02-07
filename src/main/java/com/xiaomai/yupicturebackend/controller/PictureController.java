@@ -62,7 +62,7 @@ public class PictureController {
      */
     private final Cache<String, String> LOCAL_CACHE =
             Caffeine.newBuilder().initialCapacity(1024)
-                    .maximumSize(10000L) //最大10000条
+                    .maximumSize(10000L)
                     // 缓存 5 分钟移除
                     .expireAfterWrite(5L, TimeUnit.MINUTES)
                     .build();
@@ -195,53 +195,54 @@ public class PictureController {
      */
     @PostMapping("/list/page/vo/cache")
     public BaseResponse<Page<PictureVO>> listPictureVOByPageWithCache(@RequestBody PictureQueryRequest pictureQueryRequest,
-                                                             HttpServletRequest request) {
-        //todo
+                                                                      HttpServletRequest request) {
         long current = pictureQueryRequest.getCurrent();
         long size = pictureQueryRequest.getPageSize();
         // 限制爬虫
         ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
-        //普通用户默认只能看到审核通过的数据，强行设置查PASS的
+        // 普通用户默认只能查看已过审的数据
         pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
 
-        //查询缓存，缓存中没有再去查数据库
-
-        //构建缓存的key
+        // 构建缓存 key
         String queryCondition = JSONUtil.toJsonStr(pictureQueryRequest);
         String hashKey = DigestUtils.md5DigestAsHex(queryCondition.getBytes());
-        String cacheKey = String.format("yupicture:listPictureVOByPage:%s",hashKey);
+        String cacheKey = "yupicture:listPictureVOByPage:" + hashKey;
 
-        //1.先从本地缓存中查询
+        // 1. 查询本地缓存（Caffeine）
         String cachedValue = LOCAL_CACHE.getIfPresent(cacheKey);
-        if(cachedValue != null){
-            //缓存命中，直接返回缓存结果
+        if (cachedValue != null) {
             Page<PictureVO> cachedPage = JSONUtil.toBean(cachedValue, Page.class);
             return ResultUtils.success(cachedPage);
         }
-        //2.本地缓存未命中，查询分布式缓存,操作Redis 从缓存中查询
-        ValueOperations<String,String> opsForValue = stringRedisTemplate.opsForValue();
-        cachedValue = opsForValue.get(cacheKey);
-
-
-        if(cachedValue != null){
-            //缓存命中，缓存结果
+        // 2. 本地缓存未命中,查询分布式缓存（Redis）
+        ValueOperations<String, String> valueOps = stringRedisTemplate.opsForValue();
+        cachedValue = valueOps.get(cacheKey);
+        if (cachedValue != null) {
+            // 如果命中 Redis，存入本地缓存并返回
+            LOCAL_CACHE.put(cacheKey, cachedValue);
             Page<PictureVO> cachedPage = JSONUtil.toBean(cachedValue, Page.class);
             return ResultUtils.success(cachedPage);
         }
-        // 查询数据库
+        // 3. 查询数据库
         Page<Picture> picturePage = pictureService.page(new Page<>(current, size),
                 pictureService.getQueryWrapper(pictureQueryRequest));
         Page<PictureVO> pictureVOPage = pictureService.getPictureVOPage(picturePage, request);
-        //存入redis缓存
+
+        // 4. 更新缓存
         String cacheValue = JSONUtil.toJsonStr(pictureVOPage);
-        //设置缓存过期时间 5- 10分钟过期 (防止缓存雪崩:集中失效导致都传入数据库，增大数据库压力)
-        int cacheExpireTime = 300 + RandomUtil.randomInt(0,300);
-        //opsForValue.set(cacheKey,cacheValue,cacheExpireTime, TimeUnit.SECONDS);
-        //写入本地缓存
-        LOCAL_CACHE.put(cacheKey,cacheValue);
-        // 获取封装类
+        // 更新 Redis 缓存，设置过期时间为 5 分钟
+        valueOps.set(cacheKey, cacheValue, 5, TimeUnit.MINUTES);
+
+        // 5 - 10 分钟随机过期，防止雪崩
+        int cacheExpireTime = 300 +  RandomUtil.randomInt(0, 300);
+        valueOps.set(cacheKey, cacheValue, cacheExpireTime, TimeUnit.SECONDS);
+        // 存入本地缓存
+        LOCAL_CACHE.put(cacheKey, cacheValue);
+        // 返回结果
         return ResultUtils.success(pictureVOPage);
     }
+
+
 
     /**
      * 分页获取图片列表（封装类,有缓存）

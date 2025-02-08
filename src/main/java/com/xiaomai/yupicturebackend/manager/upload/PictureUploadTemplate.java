@@ -57,19 +57,18 @@ public abstract class PictureUploadTemplate {
             //6.获取到图片处理结果
             ProcessResults processResults = putObjectResult.getCiUploadResult().getProcessResults();
             List<CIObject> objectList = processResults.getObjectList();
-            if(CollUtil.isNotEmpty(objectList)){
-                //获取压缩之后得到的文件信息
-                CIObject compressCiObject = objectList.get(0);
-                //缩略图默认等于压缩图
-                CIObject thumbnailCiObject = compressCiObject;
-                //有生成缩略图，才获取缩略图
-                if(objectList.size()>1){
+            if (CollUtil.isNotEmpty(objectList)) {
+                CIObject compressedCiObject = objectList.get(0);
+                // 缩略图默认等于压缩图
+                CIObject thumbnailCiObject = compressedCiObject;
+                // 有生成缩略图，才得到缩略图
+                if (objectList.size() > 1) {
                     thumbnailCiObject = objectList.get(1);
                 }
-
-                //封装压缩图的返回结果
-                return buildResult(originFilename, compressCiObject,thumbnailCiObject);
+                // 封装压缩图返回结果
+                return buildResult(originFilename, compressedCiObject, thumbnailCiObject);
             }
+
             return buildResult(originFilename, file, uploadPath, imageInfo);  
         } catch (Exception e) {  
             log.error("图片上传到对象存储失败", e);  

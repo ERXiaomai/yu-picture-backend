@@ -11,6 +11,7 @@ import com.xiaomai.yupicturebackend.config.JsonConfig;
 import com.xiaomai.yupicturebackend.exception.BusinessException;
 import com.xiaomai.yupicturebackend.exception.ErrorCode;
 import com.xiaomai.yupicturebackend.exception.ThrowUtils;
+import com.xiaomai.yupicturebackend.manager.CosManager;
 import com.xiaomai.yupicturebackend.manager.FileManager;
 import com.xiaomai.yupicturebackend.manager.upload.FilePictureUpload;
 import com.xiaomai.yupicturebackend.manager.upload.PictureUploadTemplate;
@@ -32,6 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -66,6 +68,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Resource
     private UrlPictureUpload urlPictureUpload;
+    @Autowired
+    private CosManager cosManager;
+
     @Override
     public void validPicture(Picture picture) {
         ThrowUtils.throwIf(picture == null, ErrorCode.PARAMS_ERROR);
@@ -360,6 +365,25 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         }
 
         return uploadCount;
+    }
+
+    @Override
+    public void clearPictureFile(Picture oldPicture) {
+        //判断该图片是否被多条记录使用
+        String pictureUrl = oldPicture.getUrl();
+        Long count = this.lambdaQuery()
+                .eq(Picture::getUrl, pictureUrl)
+                .count();
+        if (count >1){
+            return;
+        }
+        //删除图片
+        cosManager.deleteObject(pictureUrl);
+        //删除缩略图
+        String thumbnailUrl = oldPicture.getThumbnailUrl();
+        if(StrUtil.isNotBlank(thumbnailUrl)){
+            cosManager.deleteObject(thumbnailUrl);
+        }
     }
 }
 

@@ -2,7 +2,8 @@ server:
   port: 8123
   servlet:
     context-path: /api
-
+    cookie:
+      max-age: 2592000
 spring:
   application:
     name: yu-picture-backend
@@ -18,7 +19,19 @@ spring:
       host: 127.0.0.1
       port: 6379
       timeout: 5000
-
+      # session 配置
+    session:
+      store-type: redis
+      # session 30 天过期
+      timeout: 2592000
+    server:
+      port: 8123
+      servlet:
+        context-path: /api
+        # cookie 30 天过期
+        session:
+          cookie:
+            max-age: 2592000
     # 文件上传大小 10MB
   servlet:
     max-http-header-size: 10MB

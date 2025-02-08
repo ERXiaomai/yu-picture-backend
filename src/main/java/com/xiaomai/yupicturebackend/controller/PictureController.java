@@ -116,6 +116,9 @@ public class PictureController {
         // 操作数据库
         boolean result = pictureService.removeById(id);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        //清理图片资源
+        pictureService.clearPictureFile(oldPicture);
+
         return ResultUtils.success(true);
     }
 
@@ -145,6 +148,8 @@ public class PictureController {
         pictureService.fillReviewParams(picture,loginUser);
         // 操作数据库
         boolean result = pictureService.updateById(picture);
+        //如果是更新，可以清理图片资源
+        //pictureService.clearPictureFile(oldPicture);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(true);
     }

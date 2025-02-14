@@ -22,12 +22,14 @@ import com.xiaomai.yupicturebackend.model.dto.picture.PictureReviewRequest;
 import com.xiaomai.yupicturebackend.model.dto.picture.PictureUploadByBatchRequest;
 import com.xiaomai.yupicturebackend.model.dto.picture.PictureUploadRequest;
 import com.xiaomai.yupicturebackend.model.entity.Picture;
+import com.xiaomai.yupicturebackend.model.entity.Space;
 import com.xiaomai.yupicturebackend.model.entity.User;
 import com.xiaomai.yupicturebackend.model.enums.PictureReviewStatusEnum;
 import com.xiaomai.yupicturebackend.model.vo.PictureVO;
 import com.xiaomai.yupicturebackend.model.vo.UserVO;
 import com.xiaomai.yupicturebackend.service.PictureService;
 import com.xiaomai.yupicturebackend.mapper.PictureMapper;
+import com.xiaomai.yupicturebackend.service.SpaceService;
 import com.xiaomai.yupicturebackend.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.nodes.Document;
@@ -68,9 +70,12 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Resource
     private UrlPictureUpload urlPictureUpload;
+
     @Autowired
     private CosManager cosManager;
 
+    @Resource
+    private SpaceService spaceService;
     @Override
     public void validPicture(Picture picture) {
         ThrowUtils.throwIf(picture == null, ErrorCode.PARAMS_ERROR);
@@ -93,7 +98,18 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Override
     public PictureVO uploadPicture(Object inputSource, PictureUploadRequest pictureUploadRequest, User loginUser) {
+        //校验参数
         ThrowUtils.throwIf(loginUser == null, ErrorCode.NO_AUTH_ERROR);
+        //校验空间是否存在
+        Long spaceId = pictureUploadRequest.getSpaceId();
+        if (spaceId != null){
+            Space space = spaceService.getById(spaceId);
+            ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
+            //校验是否有空间的权限,仅空间管理员才能上传
+            if(!loginUser.getId().equals(space.getUserId())){
+                throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
+            }
+        }
         // 用于判断是新增还是更新图片
         Long pictureId = null;
         if (pictureUploadRequest != null) {
@@ -107,10 +123,29 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             if(!oldPicture.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)){
                 throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
             }
+            //校验空间是否一致
+            //没传spaceId则复用原来的spaceId（这样也兼容了公共图库）
+            if(spaceId == null){
+                if(oldPicture.getSpaceId()!=null){
+                    spaceId = oldPicture.getSpaceId();
+                }
+            }else{
+                //传了spaceId，需要校验是否一致
+                if(ObjUtil.notEqual(spaceId,oldPicture.getSpaceId())){
+                    throw new BusinessException(ErrorCode.PARAMS_ERROR, "空间id不一致");
+                }
+            }
         }
         // 上传图片，得到信息
-        // 按照用户 id 划分目录
-        String uploadPathPrefix = String.format("public/%s", loginUser.getId());
+        // 按照用户 id 划分目录  => 按照空间划分目录
+        String uploadPathPrefix = null;
+        if(spaceId == null){
+            //公共图库
+            uploadPathPrefix = String.format("public/%s", loginUser.getId());
+        }else{
+            // 空间
+            uploadPathPrefix = String.format("space/%s", spaceId);
+        }
         // 根据 inputSource 类型区分上传方式
         PictureUploadTemplate pictureUploadTemplate = filePictureUpload;
         if (inputSource instanceof String) {
@@ -119,6 +154,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         UploadPictureResult uploadPictureResult = pictureUploadTemplate.uploadPicture(inputSource, uploadPathPrefix);
         // 构造要入库的图片信息
         Picture picture = new Picture();
+        picture.setSpaceId(spaceId); //指定空间id
         picture.setUrl(uploadPictureResult.getUrl());
         picture.setThumbnailUrl(uploadPictureResult.getThumbnailUrl());
 

@@ -1,6 +1,4 @@
 package com.xiaomai.yupicturebackend.controller;
-
-
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -18,6 +16,7 @@ import com.xiaomai.yupicturebackend.model.dto.space.*;
 import com.xiaomai.yupicturebackend.model.entity.Space;
 import com.xiaomai.yupicturebackend.model.entity.User;
 
+import com.xiaomai.yupicturebackend.model.enums.SpaceLevelEnum;
 import com.xiaomai.yupicturebackend.model.vo.SpaceVO;
 import com.xiaomai.yupicturebackend.service.SpaceService;
 import com.xiaomai.yupicturebackend.service.UserService;
@@ -35,6 +34,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * 功能:
@@ -205,5 +205,20 @@ public class SpaceController {
         return ResultUtils.success(true);
     }
 
-
+    /**
+     * 获取空间级别列表，便于前端展示
+     * @return
+     */
+    @GetMapping("list/level")
+    public BaseResponse<List<SpaceLevel>> listSpaceLevel(){
+        List<SpaceLevel> spaceLevelList = Arrays.stream(SpaceLevelEnum.values())
+                .map(spaceLevelEnum -> new SpaceLevel(
+                        spaceLevelEnum.getValue(),
+                        spaceLevelEnum.getText(),
+                        spaceLevelEnum.getMaxCount(),
+                        spaceLevelEnum.getMaxSize()
+                ))
+                .collect(Collectors.toList());
+        return ResultUtils.success(spaceLevelList);
+    }
 }
